@@ -1,0 +1,6 @@
+server/.env
+server/vendor/
+server/go.work
+server/go.work.sum
+.DS_Store
+Thumbs.db
