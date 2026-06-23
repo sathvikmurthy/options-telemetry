@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	kiteconnect "github.com/zerodha/gokiteconnect/v4"
-	// "github.com/zerodha/gokiteconnect/v4/models"
+	"github.com/zerodha/gokiteconnect/v4/models"
 	kiteticker "github.com/zerodha/gokiteconnect/v4/ticker"
 )
 
@@ -21,9 +21,6 @@ var (
 	ticker *kiteticker.Ticker
 )
 
-var upgrader = websocket.Upgrader {
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
 var clients = make(map[*websocket.Conn]bool)
 var broadcast = make(chan TickData)
 
@@ -73,6 +70,8 @@ func startSession(w http.ResponseWriter, r *http.Request) {
 	kc.SetAccessToken(data.AccessToken)
 	fmt.Println("✅ Session Generated Successfully! Access Token created.")
 
+	startTicker(data.AccessToken)
+
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "success",
 	})
@@ -99,6 +98,15 @@ func startTicker(accessToken string) {
 	ticker.OnClose(func(code int, reason string) { fmt.Println("Ticker Closed:", code, reason) })
 
 	go ticker.Serve()
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	// Explicitly allow all origins for local development
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func handleLocalWS(w http.ResponseWriter, r *http.Request) {
