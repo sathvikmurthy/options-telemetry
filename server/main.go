@@ -2,24 +2,25 @@ package main
 
 import (
 	"fmt"
+	"encoding/json"
+	"log"
+	"os"
+	"net/http"
 
 	"github.com/joho/godotenv"
 	kiteconnect "github.com/zerodha/gokiteconnect/v4"
-	"github.com/zerodha/gokiteconnect/v4/models"
-	kiteticker "github.com/zerodha/gokiteconnect/v4/ticker"
+	// "github.com/zerodha/gokiteconnect/v4/models"
+	// kiteticker "github.com/zerodha/gokiteconnect/v4/ticker"
 )
 
-const (
+var (
 	apiKey string
 	apiSecret string
+	kc *kiteconnect.Client
 )
 
 func main() {
-	err := godotenv.Load();
-	if err != nil {
-		log.Println("Warning: Could not load .env file.")
-	}
-
+	godotenv.Load()
 	apiKey = os.Getenv("KITE_API_KEY")
 	apiSecret = os.Getenv("KITE_API_SECRET")
 
@@ -27,54 +28,50 @@ func main() {
 		log.Fatal("KITE_API_KEY and KITE_API_SECRET must be set in your .env file!")
 	}
 
-    kc := kiteconnect.New(apiKey);
+    kc = kiteconnect.New(apiKey);
 
-	fmt.Println(kc.GetLoginURL());
-	var requestToken string
-	fmt.Scanf("%s\n", &requestToken)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/login-url", getLoginURL)
+	mux.HandleFunc("/api/start-session", startSession)
 
-	data, err := kc.GenerateSession(requestToken, apiSecret)
+	fmt.Println("Auth Backend Running on http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", enableCORS(mux)))
+}
+
+func getLoginURL(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]string{"url": kc.GetLoginURL()})
+}
+
+func startSession(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Token string `json:"request_token"`
+	}
+	json.NewDecoder(r.Body).Decode(&request)
+
+	data, err := kc.GenerateSession(request.Token, apiSecret)
 	if err != nil {
-		fmt.Printf("Error: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	kc.SetAccessToken(data.AccessToken)
+	fmt.Println("✅ Session Generated Successfully! Access Token created.")
 
-	margins, err := kc.GetUserMargins()
-	if err != nil {
-		fmt.Printf("Error getting margins: %v", err)
-	}
-	fmt.Println("margins: ", margins)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success",
+	})
+}
 
-	fmt.Println("Initializing websocket")
-	ticker := kiteticker.New(apiKey, data.AccessToken)
-
-	var niftyToken uint32 = 256265
-
-	ticker.OnConnect(func() {
-		fmt.Println("Connected to Kite Websocket!")
-
-		err := ticker.Subscribe([]uint32{niftyToken})
-		if err != nil {
-			fmt.Println("Error setting mode:", err)
+//CORS to talk to the frontend
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
 		}
+		next.ServeHTTP(w, r)
 	})
-
-	ticker.OnTick(func(tick models.Tick) {
-		if tick.InstrumentToken == niftyToken {
-			fmt.Printf("\rNIFTY 50 Live Price: ₹%.2f     ", tick.LastPrice)
-		}
-	})
-
-	ticker.OnError(func(err error) {
-		fmt.Println("Error in websocket:", err)
-	})
-
-	ticker.OnClose(func(code int, reason string) {
-		fmt.Printf("\n WebSocket Closed: %d - %s\n", code, reason)
-	})
-
-	ticker.Serve()
-
 }
