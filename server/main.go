@@ -21,13 +21,23 @@ var (
 	ticker *kiteticker.Ticker
 )
 
-var clients = make(map[*websocket.Conn]bool)
-var broadcast = make(chan TickData)
+// selected by the user from getPositions
+var activeShortToken uint32
+var activeLongToken uint32
 
-type TickData struct {
-	InstrumentToken uint32  `json:"instrument_token"`
-	LastPrice       float64 `json:"last_price"`
+type SpreadData struct {
+	NiftyLTP  float64 `json:"niftyLTP"`
+	ShortLTP float64 `json:"shortLTP"`
+	LongLTP float64 `json:"longLTP"`
+	NetSpread float64 `json:"netSpread"`
+	InitialSpread float64 `json:"initialSpread"`
+	Status string `json:"status"`
 }
+
+var currentData SpreadData
+
+var clients = make(map[*websocket.Conn]bool)
+var broadcast = make(chan SpreadData)
 
 func main() {
 	godotenv.Load()
@@ -44,6 +54,8 @@ func main() {
 	mux.HandleFunc("/api/login-url", getLoginURL)
 	mux.HandleFunc("/api/start-session", startSession)
 	mux.HandleFunc("/ws", handleLocalWS)
+	mux.HandleFunc("/api/positions", getPositions)
+	mux.HandleFunc("/api/track-spread", setTrackedSpread)
 
 	go handleMessages()
 
@@ -77,6 +89,62 @@ func startSession(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func getPositions(w http.ResponseWriter, r *http.Request) {
+	if kc == nil {
+		http.Error(w, "Kite client not initialized. Please log in first.", http.StatusInternalServerError)
+		return
+	}
+
+	positions, err := kc.GetPositions()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(positions)
+}
+
+func setTrackedSpread(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ShortToken uint32 `json:"short_token"`
+		LongToken uint32 `json:"long_token"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	activeShortToken = req.ShortToken
+	activeLongToken = req.LongToken
+
+	positions, err := kc.GetPositions()
+	if err == nil {
+		var shortEntry, longEntry float64
+
+		for _, pos := range positions.Net {
+			if pos.InstrumentToken == activeShortToken {
+				shortEntry = pos.AveragePrice
+			}
+			if pos.InstrumentToken == activeLongToken {
+				longEntry = pos.AveragePrice
+			}
+		}
+
+		if shortEntry > 0 && longEntry > 0 {
+			currentData.InitialSpread = shortEntry - longEntry
+		}
+	} else {
+		fmt.Println("Warning: Could not fetch positions to calculate initial spread:", err)
+	}
+
+	if ticker != nil {
+		ticker.Subscribe([]uint32{activeShortToken, activeLongToken})
+		ticker.SetMode(kiteticker.ModeFull, []uint32{activeShortToken, activeLongToken})
+		currentData.Status = "Spread Tracked - Waiting for ticks..."
+		fmt.Printf("Tracking Spread: Short [%d] | Long [%d]\n", activeShortToken, activeLongToken)
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
 func startTicker(accessToken string) {
 	ticker = kiteticker.New(apiKey, accessToken)
 
@@ -88,22 +156,48 @@ func startTicker(accessToken string) {
 	})
 
 	ticker.OnTick(func(tick models.Tick) {
-		broadcast <- TickData{
-			InstrumentToken: tick.InstrumentToken,
-			LastPrice:       tick.LastPrice,
+		//nifty
+		if tick.InstrumentToken == 256265 {
+			currentData.NiftyLTP = tick.LastPrice
 		}
+
+		// dynamic short leg
+		if activeShortToken != 0 && tick.InstrumentToken == activeShortToken {
+			currentData.ShortLTP = tick.LastPrice
+		}
+		
+		// dynamic long leg
+		if activeLongToken != 0 && tick.InstrumentToken == activeLongToken {
+			currentData.LongLTP = tick.LastPrice
+		}
+
+		// calculate net spread
+		if currentData.ShortLTP > 0 && currentData.LongLTP > 0 {
+			currentData.NetSpread = currentData.ShortLTP - currentData.LongLTP
+			
+			// update status
+			if currentData.Status == "Spread Tracked - Waiting for ticks..." {
+				currentData.Status = "Monitoring Live Spread"
+			}
+
+			targetPrice := currentData.InitialSpread / 2
+
+			// target
+			if currentData.NetSpread <= targetPrice && currentData.InitialSpread > 0 {
+				currentData.Status = "Target Reached - Executing Close!"
+			}
+		}
+
+		broadcast <- currentData
 	})
 
-	ticker.OnError(func(err error) { fmt.Println("Ticker Error:", err) })
-	ticker.OnClose(func(code int, reason string) { fmt.Println("Ticker Closed:", code, reason) })
-
-	go ticker.Serve()
+	ticker.Serve()
 }
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Explicitly allow all origins for local development
+	// allowing all origins for dev
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
