@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"log"
-	"os"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	apiKey string
+	apiKey    string
 	apiSecret string
-	kc *kiteconnect.Client
-	ticker *kiteticker.Ticker
+	kc        *kiteconnect.Client
+	ticker    *kiteticker.Ticker
 )
 
 // selected by the user from getPositions
@@ -26,12 +26,12 @@ var activeShortToken uint32
 var activeLongToken uint32
 
 type SpreadData struct {
-	NiftyLTP  float64 `json:"niftyLTP"`
-	ShortLTP float64 `json:"shortLTP"`
-	LongLTP float64 `json:"longLTP"`
-	NetSpread float64 `json:"netSpread"`
+	NiftyLTP      float64 `json:"niftyLTP"`
+	ShortLTP      float64 `json:"shortLTP"`
+	LongLTP       float64 `json:"longLTP"`
+	NetSpread     float64 `json:"netSpread"`
 	InitialSpread float64 `json:"initialSpread"`
-	Status string `json:"status"`
+	Status        string  `json:"status"`
 }
 
 var currentData SpreadData
@@ -48,7 +48,7 @@ func main() {
 		log.Fatal("KITE_API_KEY and KITE_API_SECRET must be set in your .env file!")
 	}
 
-    kc = kiteconnect.New(apiKey);
+	kc = kiteconnect.New(apiKey)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/login-url", getLoginURL)
@@ -108,7 +108,7 @@ func getPositions(w http.ResponseWriter, r *http.Request) {
 func setTrackedSpread(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ShortToken uint32 `json:"short_token"`
-		LongToken uint32 `json:"long_token"`
+		LongToken  uint32 `json:"long_token"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
@@ -165,7 +165,7 @@ func startTicker(accessToken string) {
 		if activeShortToken != 0 && tick.InstrumentToken == activeShortToken {
 			currentData.ShortLTP = tick.LastPrice
 		}
-		
+
 		// dynamic long leg
 		if activeLongToken != 0 && tick.InstrumentToken == activeLongToken {
 			currentData.LongLTP = tick.LastPrice
@@ -174,7 +174,7 @@ func startTicker(accessToken string) {
 		// calculate net spread
 		if currentData.ShortLTP > 0 && currentData.LongLTP > 0 {
 			currentData.NetSpread = currentData.ShortLTP - currentData.LongLTP
-			
+
 			// update status
 			if currentData.Status == "Spread Tracked - Waiting for ticks..." {
 				currentData.Status = "Monitoring Live Spread"
@@ -191,7 +191,7 @@ func startTicker(accessToken string) {
 		broadcast <- currentData
 	})
 
-	ticker.Serve()
+	go ticker.Serve()
 }
 
 var upgrader = websocket.Upgrader{
@@ -233,7 +233,7 @@ func handleMessages() {
 	}
 }
 
-//CORS to talk to the frontend
+// CORS to talk to the frontend
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

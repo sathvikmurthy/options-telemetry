@@ -15,7 +15,7 @@ export default function Callback() {
         const token = urlParams.get("request_token")
 
         if(token) {
-            setStatus("Toke received, Auth with Backend...!");
+            setStatus("Token received, Auth with Backend...!");
 
             Axios.post("http://localhost:8080/api/start-session", {
                 request_token: token
