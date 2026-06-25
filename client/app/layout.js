@@ -1,4 +1,11 @@
 import "./globals.css";
+import { Montserrat } from 'next/font/google';
+
+const montserrat = Montserrat({ 
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+});
 
 export const metadata = {
   title: "Create Next App",
@@ -8,7 +15,16 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body suppressHydrationWarning={true}>
+      <body 
+        suppressHydrationWarning={true}
+        style={{
+          backgroundColor: '#050505',
+          color: '#fafafa',
+          margin: 0,
+          padding: 0,
+          boxSizing: 'border-box'
+        }}
+      >
         {children}
       </body>
     </html>

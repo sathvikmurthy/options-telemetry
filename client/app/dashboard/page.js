@@ -3,6 +3,7 @@
 import React from "react";
 import { useState, useEffect, useRef } from "react";
 import Axios from "axios";
+import "./dashboard.css";
 
 export default function Dashboard() {
 
@@ -80,102 +81,155 @@ export default function Dashboard() {
     }
 
     return (
-        
-        <div>
-            <div>
-                <h1>Theta Harvester</h1>
-                <div>{wsStatus}</div>
+        <div className="dashboard-container">
+            
+            {/* Header */}
+            <header className="dashboard-header">
+                <h1 className="dashboard-title">Theta Harvester</h1>
+                <div 
+                    className="status-indicator" 
+                    style={{ color: wsStatus.includes("🟢") ? "#10b981" : "#ef4444" }}
+                >
+                    <span 
+                        className="status-dot" 
+                        style={{ backgroundColor: wsStatus.includes("🟢") ? "#10b981" : "#ef4444" }}
+                    ></span>
+                    {wsStatus}
+                </div>
+            </header>
+
+            {/* Top Widgets */}
+            <div className="widgets-row">
+                
+                {/* Nifty 50 Card */}
+                <div className="terminal-card nifty-card">
+                    <h3 className="card-label">NIFTY 50</h3>
+                    <div className="card-value" style={{ color: "#eab308" }}>
+                        <span>₹{spreadData.niftyLTP > 0 ? spreadData.niftyLTP.toFixed(2) : "----.--"}</span>
+                    </div>
+                </div>
+
+                {/* Spread Monitor */}
+                <div className="terminal-card spread-card">
+                    <div className="spread-legs">
+                        <div>
+                            <h4 className="card-label">Short Leg LTP</h4>
+                            <div className="card-value-small">
+                                <span>₹{spreadData.shortLTP > 0 ? spreadData.shortLTP.toFixed(2) : "0.00"}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 className="card-label">Long Leg LTP</h4>
+                            <div className="card-value-small">
+                                <span>₹{spreadData.longLTP > 0 ? spreadData.longLTP.toFixed(2) : "0.00"}</span>
+                            </div>
+                        </div>
+                        <div className="divider">
+                            <h4 className="card-label">Collected Premium</h4>
+                            <div className="card-value-muted">
+                                <span>₹{spreadData.initialSpread > 0 ? spreadData.initialSpread.toFixed(2) : "0.00"}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="net-spread-section">
+                        <h4 className="card-label" style={{ marginBottom: "8px" }}>Live Net Spread</h4>
+                        <div 
+                            className="card-value-large" 
+                            style={{ color: spreadData.netSpread > 0 ? "#3b82f6" : "#fafafa" }}
+                        >
+                            <span>₹{spreadData.netSpread > 0 ? spreadData.netSpread.toFixed(2) : "0.00"}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div>
-                <div>
-                    <h3>NIFTY 50</h3>
-                    <div>
-                        ₹{spreadData.niftyLTP > 0 ? spreadData.niftyLTP.toFixed(2) : "-----.--"}
-                    </div>
-                </div>
-
-                <div>
-                    <div>
-                        <h4>Short Leg LTP</h4>
-                        <div>₹{spreadData.shortLTP > 0 ? spreadData.shortLTP.toFixed(2) : "0.00"}</div>
-                    </div>
-                    <div>
-                        <h4>Long Leg LTP</h4>
-                        <div>₹{spreadData.longLTP > 0 ? spreadData.longLTP.toFixed(2) : "0.00"}</div>
-                    </div>
-                    <div>
-                        <h4>Collected Premium</h4>
-                        <div>₹{spreadData.initialSpread > 0 ? spreadData.initialSpread.toFixed(2) : "0.00"}</div>
-                    </div>
-                </div>
-
-                <div>
-                    <h4>Live Net Spread</h4>
-                    <div>₹{spreadData.netSpread > 0 ? spreadData.netSpread.toFixed(2) : "0.00"}</div>
-                </div>
-            </div>
-
-            <div>
-                <div>
-                    <h4>Live Positions</h4>
-                    <div>
-                        <button onClick={fetchPositions} disabled={isFetching}>
+            {/* Positions Table Container */}
+            <div className="terminal-card">
+                <div className="table-header">
+                    <h4 className="table-title">Live Positions</h4>
+                    <div className="button-group">
+                        <button 
+                            className="btn btn-secondary"
+                            onClick={fetchPositions} 
+                            disabled={isFetching}
+                        >
                             {isFetching ? "Refreshing..." : "Refresh Positions"}
                         </button>
-                        <button onClick={handleTrackSpread}>
+                        <button 
+                            className="btn btn-primary"
+                            onClick={handleTrackSpread}
+                        >
                             Start Tracking Spread
                         </button>
                     </div>
                 </div>
 
                 {!positions ? (
-                    <div>
+                    <div className="empty-state">
                         Click "Refresh Positions" to pull your latest portfolio.
                     </div>
                 ) : (!positions.net || positions.net.length === 0) ? (
-                    <div>
+                    <div className="empty-state">
                         No open positions found.
                     </div>
                 ) : (
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Select Short</th>
-                                <th>Select Long</th>
-                                <th>Instrument</th>
-                                <th>Qty</th>
-                                <th>Avg Entry</th>
-                                <th>P&L</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {positions.net?.map((pos, idx) => (
-                                <tr key={idx}>
-                                    <td>
-                                        <input 
-                                            type="radio" 
-                                            name="shortLeg" 
-                                            value={pos.instrument_token} 
-                                            onChange={() => setSelectedShort(pos.instrument_token)} 
-                                        />
-                                    </td>
-                                    <td>
-                                        <input 
-                                            type="radio" 
-                                            name="longLeg" 
-                                            value={pos.instrument_token} 
-                                            onChange={() => setSelectedLong(pos.instrument_token)} 
-                                        />
-                                    </td>
-                                    <td>{pos.tradingsymbol}</td>
-                                    <td>{pos.quantity}</td>
-                                    <td>₹{pos.average_price}</td>
-                                    <td>₹{pos.pnl}</td>
+                    <div className="table-responsive">
+                        <table className="positions-table">
+                            <thead>
+                                <tr>
+                                    <th className="text-center" style={{ width: '80px' }}>Short</th>
+                                    <th className="text-center" style={{ width: '80px' }}>Long</th>
+                                    <th className="text-left">Instrument</th>
+                                    <th className="text-right">Qty</th>
+                                    <th className="text-right">Avg Entry</th>
+                                    <th className="text-right">P&L</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {positions.net?.map((pos, idx) => (
+                                    <tr key={idx}>
+                                        <td className="text-center">
+                                            <input 
+                                                type="radio" 
+                                                name="shortLeg" 
+                                                value={pos.instrument_token} 
+                                                onChange={() => setSelectedShort(pos.instrument_token)} 
+                                                className="radio-short"
+                                            />
+                                        </td>
+                                        <td className="text-center">
+                                            <input 
+                                                type="radio" 
+                                                name="longLeg" 
+                                                value={pos.instrument_token} 
+                                                onChange={() => setSelectedLong(pos.instrument_token)} 
+                                                className="radio-long"
+                                            />
+                                        </td>
+                                        <td className="text-left" style={{ fontWeight: '600', color: '#fafafa' }}>
+                                            {pos.tradingsymbol}
+                                        </td>
+                                        <td 
+                                            className="text-right font-mono" 
+                                            style={{ color: pos.quantity > 0 ? "#10b981" : (pos.quantity < 0 ? "#ef4444" : "#a1a1aa") }}
+                                        >
+                                            {pos.quantity}
+                                        </td>
+                                        <td className="text-right font-mono" style={{ color: '#a1a1aa' }}>
+                                            ₹{pos.average_price}
+                                        </td>
+                                        <td 
+                                            className="text-right font-mono"
+                                            style={{ color: pos.pnl >= 0 ? "#10b981" : "#ef4444" }}
+                                        >
+                                            ₹{pos.pnl}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
         </div>

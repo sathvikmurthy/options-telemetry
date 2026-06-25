@@ -138,7 +138,7 @@ func setTrackedSpread(w http.ResponseWriter, r *http.Request) {
 	if ticker != nil {
 		ticker.Subscribe([]uint32{activeShortToken, activeLongToken})
 		ticker.SetMode(kiteticker.ModeFull, []uint32{activeShortToken, activeLongToken})
-		currentData.Status = "Spread Tracked - Waiting for ticks..."
+		currentData.Status = "🟢Spread Tracked - Waiting for ticks..."
 		fmt.Printf("Tracking Spread: Short [%d] | Long [%d]\n", activeShortToken, activeLongToken)
 	}
 
@@ -176,7 +176,7 @@ func startTicker(accessToken string) {
 			currentData.NetSpread = currentData.ShortLTP - currentData.LongLTP
 
 			// update status
-			if currentData.Status == "Spread Tracked - Waiting for ticks..." {
+			if currentData.Status == "🟢Spread Tracked - Waiting for ticks..." {
 				currentData.Status = "Monitoring Live Spread"
 			}
 
